@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Modules from "./pages/Modules";
 import Vendors from "./pages/Vendors";
 import Categories from "./pages/Categories";
+import Subcategories from "./pages/Subcategories";
 import Products from "./pages/Products";
 
 // simple auth check for admin token
@@ -34,7 +35,8 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="modules" element={<Modules />} />
           <Route path="vendors" element={<Vendors />} />
-          <Route path="categories" element={<Categories />} />
+       <Route path="subcategories" element={<Subcategories />} />
+         <Route path="categories" element={<Categories />} />
           <Route path="products" element={<Products />} />
         </Route>
 
