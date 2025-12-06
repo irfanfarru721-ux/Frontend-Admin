@@ -1,41 +1,61 @@
 import React, { useEffect, useState } from "react";
-import API from "../api/adminApi";
+import Sidebar from "../components/Sidebar";
+import { fetchModules, fetchCategories, createCategory } from "../api/api";
 
-export default function Categories(){
-  const [list,setList]=useState([]);
-  const [vendors,setVendors]=useState([]);
-  const [name,setName]=useState('');
-  const [vendorId,setVendorId]=useState('');
-  const [editing,setEditing]=useState(null);
+export default function Categories() {
+  const [modules, setModules] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [name, setName] = useState("");
+  const [moduleId, setModuleId] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  useEffect(()=>{ API.get('/vendors').then(r=>setVendors(r.data)); load() },[]);
-  const load = async ()=>{ const r = await API.get('/categories'); setList(r.data) };
-
-  const save = async ()=>{
-    if(!name||!vendorId) return alert('Fill fields');
-    if(editing) await API.put(`/categories/${editing._id}`, { name, vendorId });
-    else await API.post('/categories', { name, vendorId });
-    setName(''); setVendorId(''); setEditing(null); load();
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [mRes, cRes] = await Promise.all([fetchModules(), fetchCategories()]);
+      const m = mRes?.data ?? mRes;
+      const c = cRes?.data ?? cRes;
+      setModules(Array.isArray(m) ? m : []);
+      setCategories(Array.isArray(c) ? c : []);
+    } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
-  const edit = (c)=>{ setEditing(c); setName(c.name||''); setVendorId(c.vendorId?._id||c.vendorId||'') };
-  const remove = async (id)=>{ if(!confirm('Delete?')) return; await API.delete(`/categories/${id}`); load() };
+  useEffect(() => { load(); }, []);
+
+  const add = async () => {
+    if (!name || !moduleId) return alert("Select module and name");
+    try {
+      await createCategory({ name, moduleId });
+      setName("");
+      setModuleId("");
+      load();
+    } catch (err) { console.error(err); alert("Failed"); }
+  };
 
   return (
-    <div>
-      <h2>Categories</h2>
-      <div style={{display:'flex',gap:8,marginBottom:12}}>
-        <input placeholder="Category name" value={name} onChange={e=>setName(e.target.value)} />
-        <select value={vendorId} onChange={e=>setVendorId(e.target.value)}>
-          <option value=''>Select vendor</option>
-          {vendors.map(v=> <option key={v._id} value={v._id}>{v.name}</option>)}
-        </select>
-        <button onClick={save} className="btn">{editing? 'Update':'Add'}</button>
-      </div>
+    <div className="flex">
+      <Sidebar />
+      <main className="flex-1 p-6">
+        <h1 className="text-2xl font-semibold mb-4">Categories</h1>
 
-      <ul>
-        {list.map(c=> <li key={c._id}><strong>{c.name}</strong> (vendor: {c.vendorId?.name||'—'}) <div><button onClick={()=>edit(c)}>Edit</button> <button onClick={()=>remove(c._id)}>Delete</button></div></li>)}
-      </ul>
+        <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <select value={moduleId} onChange={e=>setModuleId(e.target.value)} className="px-3 py-2 border rounded">
+            <option value="">Select module</option>
+            {modules.map(m => <option key={m._id} value={m._id}>{m.name}</option>)}
+          </select>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Category name" className="px-3 py-2 border rounded" />
+          <button onClick={add} className="px-4 py-2 bg-blue-600 text-white rounded">Add</button>
+        </div>
+
+        <div className="grid gap-3">
+          {categories.map(c => (
+            <div key={c._id} className="bg-white p-3 rounded shadow">
+              <div className="font-medium">{c.name}</div>
+              <div className="text-sm text-gray-500">Module: {c.moduleId?.name || "—"}</div>
+            </div>
+          ))}
+        </div>
+      </main>
     </div>
   );
 }
