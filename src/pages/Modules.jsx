@@ -1,35 +1,47 @@
 import React, { useEffect, useState } from "react";
-import API from "../api/adminApi";
+import Sidebar from "../components/Sidebar";
+import { fetchModules, createModule } from "../api/api";
 
 export default function Modules() {
-  const [list, setList] = useState([]);
+  const [modules, setModules] = useState([]);
   const [name, setName] = useState("");
-  const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(()=>{ load() },[]);
-  const load = async ()=>{ const r = await API.get('/modules'); setList(r.data) };
-
-  const save = async ()=>{
-    if(!name.trim()) return alert('Enter name');
-    if(editing) await API.put(`/modules/${editing._id}`, { name });
-    else await API.post('/modules', { name });
-    setName(''); setEditing(null); load();
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetchModules();
+      const data = res?.data ?? res;
+      setModules(Array.isArray(data) ? data : []);
+    } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
-  const edit = (m)=>{ setEditing(m); setName(m.name) };
-  const remove = async (id)=>{ if(!confirm('Delete?')) return; await API.delete(`/modules/${id}`); load() };
+  useEffect(() => { load(); }, []);
+
+  const add = async () => {
+    if (!name.trim()) return;
+    try {
+      await createModule({ name });
+      setName("");
+      load();
+    } catch (err) { console.error(err); alert("Failed"); }
+  };
 
   return (
-    <div>
-      <h2>Modules</h2>
-      <div style={{display:'flex',gap:8,marginBottom:12}}>
-        <input placeholder="Module name" value={name} onChange={e=>setName(e.target.value)} />
-        <button onClick={save} className="btn">{editing? 'Update' : 'Add'}</button>
-        {editing && <button onClick={()=>{setEditing(null); setName('')}}>Cancel</button>}
-      </div>
-      <ul>
-        {list.map(m=> <li key={m._id}>{m.name} <button onClick={()=>edit(m)}>Edit</button> <button onClick={()=>remove(m._id)}>Delete</button></li>)}
-      </ul>
+    <div className="flex">
+      <Sidebar />
+      <main className="flex-1 p-6">
+        <h1 className="text-2xl font-semibold mb-4">Modules</h1>
+
+        <div className="mb-4 flex gap-2">
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Module name" className="px-3 py-2 border rounded flex-1" />
+          <button onClick={add} className="px-4 py-2 bg-green-600 text-white rounded">Add</button>
+        </div>
+
+        <div className="grid gap-3">
+          {modules.map(m => <div key={m._id} className="bg-white p-3 rounded shadow">{m.name}</div>)}
+        </div>
+      </main>
     </div>
   );
 }
