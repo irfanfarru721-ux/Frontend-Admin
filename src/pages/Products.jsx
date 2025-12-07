@@ -1,68 +1,76 @@
 import React, { useEffect, useState } from "react";
-import Sidebar from "../components/Sidebar";
-import { fetchProducts, fetchSubcategories, createProduct } from "../api/api";
+import API from "../api/adminApi";
 
-export default function Products() {
-  const [subcategories, setSubcategories] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [form, setForm] = useState({ name: "", price: "", description: "", subcategoryId: "", stock: 0 });
+export default function Products(){
+  const [list,setList]=useState([]);
+  const [vendors,setVendors]=useState([]);
+  const [categories,setCategories]=useState([]);
 
-  const load = async () => {
-    try {
-      const [sRes, pRes] = await Promise.all([fetchSubcategories(), fetchProducts()]);
-      const s = sRes?.data ?? sRes;
-      const p = pRes?.data ?? pRes;
-      setSubcategories(Array.isArray(s) ? s : []);
-      setProducts(Array.isArray(p) ? p : []);
-    } catch (err) { console.error(err); }
+  const [name,setName]=useState('');
+  const [price,setPrice]=useState('');
+  const [vendorId,setVendorId]=useState('');
+  const [categoryId,setCategoryId]=useState('');
+  const [imageUrl,setImageUrl]=useState('');
+  const [description,setDescription]=useState('');
+  const [editing,setEditing]=useState(null);
+
+  useEffect(()=>{ load(); API.get('/vendors').then(r=>setVendors(r.data)); API.get('/categories').then(r=>setCategories(r.data)) },[]);
+  const load = async ()=>{ const r = await API.get('/products'); setList(r.data) };
+
+  const uploadToCloudinary = async (file)=>{
+    if(!file) return null;
+    const url = import.meta.env.VITE_CLOUDINARY_UPLOAD_URL || '';
+    const preset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || '';
+    if(!url || !preset) return null;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('upload_preset', preset);
+    const res = await fetch(url, { method:'POST', body:fd });
+    const json = await res.json();
+    return json.secure_url || json.url;
   };
 
-  useEffect(() => { load(); }, []);
+  const onFile = async (e)=>{ const f = e.target.files[0]; if(!f) return; const up = await uploadToCloudinary(f); if(up) setImageUrl(up) };
 
-  const add = async () => {
-    if (!form.name || !form.subcategoryId) return alert("Name and subcategory required");
-    try {
-      await createProduct(form);
-      setForm({ name: "", price: "", description: "", subcategoryId: "", stock: 0 });
-      load();
-    } catch (err) { console.error(err); alert("Failed"); }
+  const save = async ()=>{
+    if(!name||!price||!vendorId||!categoryId) return alert('Fill required fields');
+    const body = { name, price: Number(price), vendorId, categoryId, image: imageUrl||'', description };
+    if(editing) await API.put(`/products/${editing._id}`, body);
+    else await API.post('/products', body);
+    setName(''); setPrice(''); setVendorId(''); setCategoryId(''); setImageUrl(''); setDescription(''); setEditing(null); load();
   };
+
+  const edit = (p)=>{ setEditing(p); setName(p.name||''); setPrice(p.price||''); setVendorId(p.vendorId?._id||p.vendorId||''); setCategoryId(p.categoryId?._id||p.categoryId||''); setImageUrl(p.image||''); setDescription(p.description||'') };
+  const remove = async (id)=>{ if(!confirm('Delete?')) return; await API.delete(`/products/${id}`); load() };
 
   return (
-    <div className="flex">
-      <Sidebar />
-      <main className="flex-1 p-6">
-        <h1 className="text-2xl font-semibold mb-4">Products</h1>
-
-        <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <select value={form.subcategoryId} onChange={e=>setForm({...form, subcategoryId: e.target.value})} className="px-3 py-2 border rounded">
-            <option value="">Select subcategory</option>
-            {subcategories.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-          </select>
-
-          <input value={form.name} onChange={e=>setForm({...form, name: e.target.value})} placeholder="Product name" className="px-3 py-2 border rounded" />
-          <input value={form.price} onChange={e=>setForm({...form, price: e.target.value})} placeholder="Price" className="px-3 py-2 border rounded" />
+    <div style={{display:'grid',gridTemplateColumns:'1fr 420px',gap:12}}>
+      <div>
+        <h2>Products</h2>
+        <input placeholder="Name" value={name} onChange={e=>setName(e.target.value)} style={{width:'100%',marginBottom:8}} />
+        <input placeholder="Price" value={price} onChange={e=>setPrice(e.target.value)} style={{width:'100%',marginBottom:8}} />
+        <select value={vendorId} onChange={e=>setVendorId(e.target.value)} style={{width:'100%',marginBottom:8}}>
+          <option value=''>Select vendor</option>
+          {vendors.map(v=> <option key={v._id} value={v._id}>{v.name}</option>)}
+        </select>
+        <select value={categoryId} onChange={e=>setCategoryId(e.target.value)} style={{width:'100%',marginBottom:8}}>
+          <option value=''>Select category</option>
+          {categories.map(c=> <option key={c._id} value={c._id}>{c.name}</option>)}
+        </select>
+        <textarea placeholder="Description" value={description} onChange={e=>setDescription(e.target.value)} style={{width:'100%',marginBottom:8,minHeight:80}} />
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <input type="file" accept="image/*" onChange={onFile} />
+          <button onClick={save} className="btn">{editing? 'Update':'Add'}</button>
         </div>
+        {imageUrl && <div style={{marginTop:8}}><img src={imageUrl} alt="product" style={{width:160}} /></div>}
+      </div>
 
-        <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <input value={form.stock} onChange={e=>setForm({...form, stock: e.target.value})} placeholder="Stock" className="px-3 py-2 border rounded" />
-          <input value={form.description} onChange={e=>setForm({...form, description: e.target.value})} placeholder="Short description" className="px-3 py-2 border rounded" />
-        </div>
-
-        <div className="mb-6">
-          <button onClick={add} className="px-4 py-2 bg-green-600 text-white rounded">Add Product</button>
-        </div>
-
-        <div className="grid gap-3">
-          {products.map(p => (
-            <div key={p._id} className="bg-white p-3 rounded shadow">
-              <div className="font-medium">{p.name}</div>
-              <div className="text-sm text-gray-500">Price: ₹{p.price} • Stock: {p.stock}</div>
-              <div className="text-sm text-gray-500">Subcategory: {p.subcategoryId?.name || "—"}</div>
-            </div>
-          ))}
-        </div>
-      </main>
+      <div>
+        <h3>Products List</h3>
+        <ul>
+          {list.map(p=> <li key={p._id}><strong>{p.name}</strong> — ₹{p.price}<br/><small>Vendor: {p.vendorId?.name||'—'} · Category: {p.categoryId?.name||'—'}</small><div><button onClick={()=>edit(p)}>Edit</button> <button onClick={()=>remove(p._id)}>Delete</button></div></li>)}
+        </ul>
+      </div>
     </div>
   );
 }
